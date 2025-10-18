@@ -26,6 +26,12 @@ class User(Base):
     hashed_password = Column(String)
     email = Column(String, unique=True, index=True)
 
+class Post(Base):
+    __tablename__ = "posts"
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String)
+    content = Column(String)
+
 # Wait for database and create tables
 max_retries = 30
 for i in range(max_retries):
@@ -97,5 +103,25 @@ async def login(
     return RedirectResponse(url="/main", status_code=303)
 
 @app.get("/main", response_class=HTMLResponse)
-async def main_page(request: Request):
-    return templates.TemplateResponse("main.html", {"request": request})
+async def main_page(request: Request, db: Session = Depends(get_db)):
+
+    posts = db.query(Post).all()
+    return templates.TemplateResponse("main.html", {"request": request, "posts": posts})
+
+@app.get("/create", response_class=HTMLResponse)
+async def create_page(request: Request):
+    return templates.TemplateResponse("create.html", {"request": request})
+
+@app.post("/create")
+async def create(
+    title: str = Form(...),
+    content: str = Form(...),
+    db: Session = Depends(get_db)
+):
+
+
+    new_post = Post(title=title, content=content)
+    db.add(new_post)
+    db.commit()
+
+    return RedirectResponse(url="/main", status_code=303)
