@@ -1,15 +1,24 @@
 <!DOCTYPE html>
 <html>
-<head>
+  <head>
     <title>Create</title>
-    <link rel="stylesheet" href="/static/css/create.css">
-</head>
-<body>
+    <link rel="stylesheet" href="/static/css/create.css" />
+  </head>
+  <body>
+    <div class="header">
+      <span>Logged in as: <strong>{{ username }}</strong></span>
+      <a href="/logout" class="logout-btn">Logout</a>
+    </div>
+
     <h1>Create</h1>
     <form method="post" action="/create">
-        <input type="text" name="title" placeholder="Title" required>
-        <input type="text" name="content" placeholder="Content" required>
-        <button type="submit">Add post</button>
+      <input type="text" name="title" placeholder="Title" required />
+      <input type="text" name="content" placeholder="Content" required />
+      <button type="submit">Add post</button>
     </form>
-</body>
+
+    <div class="link">
+      <a href="/main">Back to forum</a>
+    </div>
+  </body>
 </html>
