@@ -64,17 +64,17 @@ def get_db():
     finally:
         db.close()
 
-# --- SANITYZACJA DANYCH WEJŚCIOWYCH ---
+# Inpute data sanitization
 def sanitize_input(text: str) -> str:
-    # Usuwa tagi HTML – najczęstsze źródło XSS.
+    # HTML tags sanitizatiom
     return re.sub(r'[<>"]', "", text)
 
 def validate_username(username: str) -> bool:
-    # Tylko litery, cyfry i _ (od 3 do 30 znaków)
+    # Username validation (letters, numbers, _ , 3 to 30 characters)
     return re.match(r'^[A-Za-z0-9_]{3,30}$', username) is not None
 
 def validate_email(email: str) -> bool:
-    # Prosta walidacja
+    # Email valdation
     return re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email) is not None
 
 # Get current user from session
@@ -105,7 +105,7 @@ async def register(
     email: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    # --- SANITYZACJA I WALIDACJA ---
+    # Sanitization and Walidation
     if not validate_username(username):
         raise HTTPException(status_code=400, detail="Username must be 3-30 chars, letters/numbers/_ only")
     username = sanitize_input(username)
@@ -138,7 +138,7 @@ async def login(
     password: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    # --- WALIDACJA I SANITYZACJA ---
+    # Sanitization and Walidation
     username = sanitize_input(username)
 
     user = db.query(User).filter(User.username == username).first()
@@ -195,7 +195,7 @@ async def create(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # --- SANITYZACJA TYTUŁU I TREŚCI POSTA ---
+    # Sanitization of content and title of the post
     clean_title = sanitize_input(title)
     clean_content = sanitize_input(content)
 
