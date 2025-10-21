@@ -9,6 +9,7 @@ from passlib.context import CryptContext
 from starlette.middleware.sessions import SessionMiddleware
 import os
 import time
+import re
 
 # Database setup
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@db:5432/authdb")
@@ -63,6 +64,19 @@ def get_db():
     finally:
         db.close()
 
+# --- SANITYZACJA DANYCH WEJŚCIOWYCH ---
+def sanitize_input(text: str) -> str:
+    # Usuwa tagi HTML – najczęstsze źródło XSS.
+    return re.sub(r'[<>"]', "", text)
+
+def validate_username(username: str) -> bool:
+    # Tylko litery, cyfry i _ (od 3 do 30 znaków)
+    return re.match(r'^[A-Za-z0-9_]{3,30}$', username) is not None
+
+def validate_email(email: str) -> bool:
+    # Prosta walidacja
+    return re.match(r'^[^@\s]+@[^@\s]+\.[^@\s]+$', email) is not None
+
 # Get current user from session
 def get_current_user(request: Request, db: Session = Depends(get_db)):
     user_id = request.session.get("user_id")
@@ -91,6 +105,15 @@ async def register(
     email: str = Form(...),
     db: Session = Depends(get_db)
 ):
+    # --- SANITYZACJA I WALIDACJA ---
+    if not validate_username(username):
+        raise HTTPException(status_code=400, detail="Username must be 3-30 chars, letters/numbers/_ only")
+    username = sanitize_input(username)
+
+    if not validate_email(email):
+        raise HTTPException(status_code=400, detail="Invalid email format")
+    email = sanitize_input(email)
+
     # Check if user exists
     existing_user = db.query(User).filter(User.username == username).first()
     if existing_user:
@@ -115,7 +138,9 @@ async def login(
     password: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    # Find user
+    # --- WALIDACJA I SANITYZACJA ---
+    username = sanitize_input(username)
+
     user = db.query(User).filter(User.username == username).first()
     if not user or not pwd_context.verify(password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -170,8 +195,13 @@ async def create(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    new_post = Post(title=title, content=content, user_id=current_user.id)
+    # --- SANITYZACJA TYTUŁU I TREŚCI POSTA ---
+    clean_title = sanitize_input(title)
+    clean_content = sanitize_input(content)
+
+    new_post = Post(title=clean_title, content=clean_content, user_id=current_user.id)
     db.add(new_post)
     db.commit()
 
     return RedirectResponse(url="/main", status_code=303)
+
