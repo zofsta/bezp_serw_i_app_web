@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Edit Post</title>
+    <link rel="stylesheet" href="/static/css/main.css" />
+    <link rel="stylesheet" href="/static/css/create.css" />
+  </head>
+  <body>
+    <div class="sidebar">
+      <h2>Menu</h2>
+      <nav>
+        <a href="/main" class="nav-link active">Posts</a>
+        <a href="/threads" class="nav-link">Threads</a>
+      </nav>
+    </div>
+
+    <div class="main-content">
+      <div class="header">
+        <span>Logged in as: <strong>{{ username }}</strong></span>
+        <a href="/logout" class="logout-btn">Logout</a>
+      </div>
+
+      <h1>Edit Post</h1>
+
+      <form id="postForm" method="post" action="/post/{{ post.id }}/edit">
+        <input type="text" name="title" placeholder="Title" value="{{ post.title }}" required />
+        <input type="text" name="tags" placeholder="Tags (comma-separated)" value="{{ ','.join([tag.name for tag in post.tags]) }}" />
+
+        <div class="editor-container">
+          <div class="editor-toolbar">
+            <button type="button" onclick="addTextBlock()" class="toolbar-btn">+ Text</button>
+            <button type="button" onclick="addImageBlock()" class="toolbar-btn">+ Image</button>
+          </div>
+
+          <div id="contentBlocks" class="content-blocks">
+            <!-- Blocks will be added here dynamically -->
+          </div>
+        </div>
+
+        <input type="hidden" name="content_blocks" id="contentBlocksData" />
+        <button type="submit" onclick="prepareSubmit()">Update Post</button>
+      </form>
+
+      <div class="link">
+        <a href="/main">Back to forum</a>
+      </div>
+    </div>
+
+    <script>
+      let blockCounter = 0;
+      const existingBlocks = {{ blocks | tojson | safe }};
+
+      function addTextBlock(content = '') {
+        const id = blockCounter++;
+        const blockHtml = `
+          <div class="content-block text-block" data-id="${id}" data-type="text">
+            <div class="block-controls">
+              <button type="button" onclick="moveUp(this)" class="control-btn">↑</button>
+              <button type="button" onclick="moveDown(this)" class="control-btn">↓</button>
+              <button type="button" onclick="removeBlock(this)" class="control-btn">×</button>
+            </div>
+            <textarea placeholder="Enter text..." rows="4">${content}</textarea>
+          </div>
+        `;
+        document.getElementById('contentBlocks').insertAdjacentHTML('beforeend', blockHtml);
+      }
+
+      function addImageBlock(url = null) {
+        if (url) {
+          const id = blockCounter++;
+          const blockHtml = `
+            <div class="content-block image-block" data-id="${id}" data-type="image" data-url="${url}">
+              <div class="block-controls">
+                <button type="button" onclick="moveUp(this)" class="control-btn">↑</button>
+                <button type="button" onclick="moveDown(this)" class="control-btn">↓</button>
+                <button type="button" onclick="removeBlock(this)" class="control-btn">×</button>
+              </div>
+              <img src="${url}" alt="Uploaded image" />
+            </div>
+          `;
+          document.getElementById('contentBlocks').insertAdjacentHTML('beforeend', blockHtml);
+          return;
+        }
+
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.onchange = async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+
+          const formData = new FormData();
+          formData.append('image', file);
+
+          try {
+            const response = await fetch('/upload-image', {
+              method: 'POST',
+              body: formData
+            });
+            const data = await response.json();
+
+            if (data.success) {
+              addImageBlock(data.url);
+            }
+          } catch (error) {
+            alert('Error uploading image: ' + error.message);
+          }
+        };
+        input.click();
+      }
+
+      function removeBlock(btn) {
+        btn.closest('.content-block').remove();
+      }
+
+      function moveUp(btn) {
+        const block = btn.closest('.content-block');
+        const prev = block.previousElementSibling;
+        if (prev) {
+          block.parentNode.insertBefore(block, prev);
+        }
+      }
+
+      function moveDown(btn) {
+        const block = btn.closest('.content-block');
+        const next = block.nextElementSibling;
+        if (next) {
+          block.parentNode.insertBefore(next, block);
+        }
+      }
+
+      function prepareSubmit() {
+        const blocks = [];
+        document.querySelectorAll('.content-block').forEach(block => {
+          if (block.dataset.type === 'text') {
+            const content = block.querySelector('textarea').value.trim();
+            if (content) {
+              blocks.push({ type: 'text', content: content });
+            }
+          } else if (block.dataset.type === 'image') {
+            blocks.push({ type: 'image', content: block.dataset.url });
+          }
+        });
+        document.getElementById('contentBlocksData').value = JSON.stringify(blocks);
+      }
+
+      // Load existing blocks
+      existingBlocks.forEach(block => {
+        if (block.type === 'text') {
+          addTextBlock(block.content);
+        } else if (block.type === 'image') {
+          addImageBlock(block.content);
+        }
+      });
+
+      // Add initial text block if no blocks exist
+      if (existingBlocks.length === 0) {
+        addTextBlock();
+      }
+    </script>
+  </body>
+</html>

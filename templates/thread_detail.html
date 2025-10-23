@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>* {{ thread.title }}</title>
+    <link rel="stylesheet" href="/static/css/main.css?v=1.3" />
+  </head>
+  <body>
+    <div class="sidebar">
+      <h2>* MENU</h2>
+      <nav>
+        <a href="/main" class="nav-link">* POSTS</a>
+        <a href="/threads" class="nav-link active">* THREADS</a>
+      </nav>
+    </div>
+
+    <div class="main-content">
+      <div class="thread-detail-header">
+        <a href="/threads" class="back-link">← [BACK]</a>
+        <h1>* {{ thread.title }}</h1>
+        {% if thread.tags %}
+        <div class="tags">
+          {% for tag in thread.tags %}
+          <span class="tag">#{{ tag.name }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+        <div class="thread-info">
+          <span>* Created by {{ thread.creator_username }} • {{ thread.created_at.strftime('%H:%M %d-%m-%Y') if thread.created_at else 'N/A' }}</span>
+        </div>
+
+        <!-- Thread Attachments -->
+        {% if thread.attachments %}
+        <div class="attachments">
+          {% for attachment in thread.attachments %}
+            {% if attachment.filetype == 'image' %}
+            <div class="attachment-item">
+              <img src="/{{ attachment.filepath }}" alt="{{ attachment.filename }}" class="attachment-image" />
+            </div>
+            {% elif attachment.filetype == 'video' %}
+            <div class="attachment-item">
+              <video controls class="attachment-video">
+                <source src="/{{ attachment.filepath }}" type="video/{{ attachment.filepath.split('.')[-1] }}">
+                Your browser does not support the video tag.
+              </video>
+            </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Messages Container -->
+      <div class="messages-container">
+        {% if messages %}
+          {% for message in messages %}
+          <div class="message">
+            <div class="message-header">
+              <span class="message-author">* {{ message.author_username }}</span>
+              <span class="message-time">{{ message.created_at.strftime('%H:%M') if message.created_at else 'N/A' }}</span>
+            </div>
+            <div class="message-content">
+              {{ message.content }}
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <p class="no-content">* No messages yet. Be the first!</p>
+        {% endif %}
+      </div>
+
+      <!-- Message Input Form -->
+      <div class="message-input-section">
+        <form method="post" action="/thread/{{ thread.id }}/message">
+          <input type="text" name="content" placeholder="* Type your message..." required />
+          <button type="submit">[SEND]</button>
+        </form>
+      </div>
+    </div>
+  </body>
+</html>

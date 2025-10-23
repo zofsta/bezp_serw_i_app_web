@@ -21,6 +21,9 @@ services:
       - db
     environment:
       DATABASE_URL: postgresql://user:password@db:5432/authdb
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: admin123
+      ADMIN_EMAIL: admin@forum.local
 
 volumes:
   postgres_data:

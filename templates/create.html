@@ -1,24 +1,253 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>Create</title>
+    <title>* CREATE POST</title>
+    <link rel="stylesheet" href="/static/css/main.css?v=1.3" />
     <link rel="stylesheet" href="/static/css/create.css" />
   </head>
   <body>
-    <div class="header">
-      <span>Logged in as: <strong>{{ username }}</strong></span>
-      <a href="/logout" class="logout-btn">Logout</a>
+    <div class="sidebar">
+      <h2>* MENU</h2>
+      <nav>
+        <a href="/main" class="nav-link active">* POSTS</a>
+        <a href="/threads" class="nav-link">* THREADS</a>
+      </nav>
     </div>
 
-    <h1>Create</h1>
-    <form method="post" action="/create">
-      <input type="text" name="title" placeholder="Title" required />
-      <input type="text" name="content" placeholder="Content" required />
-      <button type="submit">Add post</button>
-    </form>
+    <div class="main-content">
+      <div class="header">
+        <h1>* CREATE NEW POST</h1>
+        <div class="user-info">
+          <span>* User: <strong>{{ username }}</strong></span>
+          <a href="/logout" class="logout-btn">[EXIT]</a>
+        </div>
+      </div>
 
-    <div class="link">
-      <a href="/main">Back to forum</a>
+      <form id="postForm" method="post" action="/create">
+        <div class="form-group">
+          <label for="title">* POST TITLE:</label>
+          <input type="text" id="title" name="title" placeholder="Enter a descriptive title..." required maxlength="200" />
+          <small class="help-text">* Required - Max 200 characters</small>
+        </div>
+
+        <div class="form-group">
+          <label for="tags">* TAGS:</label>
+          <input type="text" id="tags" name="tags" placeholder="e.g., gaming, discussion, question" />
+          <small class="help-text">* Optional - Comma-separated tags for categorization</small>
+        </div>
+
+        <div class="editor-container">
+          <div class="editor-header">
+            <h3>* CONTENT BLOCKS:</h3>
+            <small class="help-text">* Build your post with text and images</small>
+          </div>
+
+          <div class="editor-toolbar">
+            <button type="button" onclick="addTextBlock()" class="toolbar-btn" title="Add text block">
+              [+ TEXT BLOCK]
+            </button>
+            <button type="button" onclick="addImageBlock()" class="toolbar-btn" title="Add image block">
+              [+ IMAGE BLOCK]
+            </button>
+          </div>
+
+          <div id="contentBlocks" class="content-blocks">
+            <!-- Blocks will be added here dynamically -->
+          </div>
+
+          <div id="emptyState" class="empty-state">
+            <p>* No content blocks yet.</p>
+            <p>* Click [+ TEXT BLOCK] or [+ IMAGE BLOCK] to start creating your post.</p>
+          </div>
+        </div>
+
+        <input type="hidden" name="content_blocks" id="contentBlocksData" />
+
+        <div class="form-actions">
+          <button type="submit" onclick="prepareSubmit()" class="submit-btn">[CREATE POST]</button>
+          <a href="/main" class="cancel-btn">[CANCEL]</a>
+        </div>
+      </form>
+
+      <div class="link">
+        <a href="/main">← [BACK TO BOARD]</a>
+      </div>
     </div>
+
+    <script>
+      let blockCounter = 0;
+
+      function updateEmptyState() {
+        const blocks = document.querySelectorAll('.content-block');
+        const emptyState = document.getElementById('emptyState');
+        if (blocks.length === 0) {
+          emptyState.style.display = 'block';
+        } else {
+          emptyState.style.display = 'none';
+        }
+      }
+
+      function addTextBlock() {
+        const id = blockCounter++;
+        const blockHtml = `
+          <div class="content-block text-block" data-id="${id}" data-type="text">
+            <div class="block-header">
+              <span class="block-type">* TEXT BLOCK #${id + 1}</span>
+              <div class="block-controls">
+                <button type="button" onclick="moveUp(this)" class="control-btn" title="Move up">▲</button>
+                <button type="button" onclick="moveDown(this)" class="control-btn" title="Move down">▼</button>
+                <button type="button" onclick="removeBlock(this)" class="control-btn delete" title="Remove block">✕</button>
+              </div>
+            </div>
+            <textarea placeholder="* Type your text here..." rows="5" oninput="autoResize(this)"></textarea>
+            <div class="block-footer">
+              <small class="char-count">0 characters</small>
+            </div>
+          </div>
+        `;
+        document.getElementById('contentBlocks').insertAdjacentHTML('beforeend', blockHtml);
+        updateEmptyState();
+
+        // Add event listener for character count
+        const newBlock = document.querySelector(`[data-id="${id}"] textarea`);
+        newBlock.addEventListener('input', function() {
+          const count = this.value.length;
+          this.closest('.content-block').querySelector('.char-count').textContent = count + ' characters';
+        });
+      }
+
+      function autoResize(textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = textarea.scrollHeight + 'px';
+      }
+
+      function addImageBlock() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.onchange = async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+
+          // Validate file size (10MB)
+          if (file.size > 10 * 1024 * 1024) {
+            alert('* Error: Image must be less than 10MB');
+            return;
+          }
+
+          const formData = new FormData();
+          formData.append('image', file);
+
+          // Show loading state
+          const loadingId = blockCounter;
+          const loadingHtml = `
+            <div class="content-block image-block loading" data-id="${loadingId}" data-type="loading">
+              <div class="block-header">
+                <span class="block-type">* IMAGE BLOCK - UPLOADING...</span>
+              </div>
+              <div class="loading-spinner">
+                <p>* Uploading image...</p>
+                <div class="spinner"></div>
+              </div>
+            </div>
+          `;
+          document.getElementById('contentBlocks').insertAdjacentHTML('beforeend', loadingHtml);
+          updateEmptyState();
+
+          try {
+            const response = await fetch('/upload-image', {
+              method: 'POST',
+              body: formData
+            });
+            const data = await response.json();
+
+            // Remove loading block
+            document.querySelector(`[data-id="${loadingId}"]`).remove();
+
+            if (data.success) {
+              const id = blockCounter++;
+              const fileSize = (file.size / 1024).toFixed(1);
+              const blockHtml = `
+                <div class="content-block image-block" data-id="${id}" data-type="image" data-url="${data.url}">
+                  <div class="block-header">
+                    <span class="block-type">* IMAGE BLOCK #${id + 1}</span>
+                    <div class="block-controls">
+                      <button type="button" onclick="moveUp(this)" class="control-btn" title="Move up">▲</button>
+                      <button type="button" onclick="moveDown(this)" class="control-btn" title="Move down">▼</button>
+                      <button type="button" onclick="removeBlock(this)" class="control-btn delete" title="Remove block">✕</button>
+                    </div>
+                  </div>
+                  <div class="image-preview">
+                    <img src="${data.url}" alt="Uploaded image" />
+                  </div>
+                  <div class="block-footer">
+                    <small>${file.name} (${fileSize} KB)</small>
+                  </div>
+                </div>
+              `;
+              document.getElementById('contentBlocks').insertAdjacentHTML('beforeend', blockHtml);
+              updateEmptyState();
+            } else {
+              alert('* Error uploading image. Please try again.');
+            }
+          } catch (error) {
+            document.querySelector(`[data-id="${loadingId}"]`).remove();
+            updateEmptyState();
+            alert('* Error uploading image: ' + error.message);
+          }
+        };
+        input.click();
+      }
+
+      function removeBlock(btn) {
+        if (confirm('* Are you sure you want to remove this block?')) {
+          btn.closest('.content-block').remove();
+          updateEmptyState();
+        }
+      }
+
+      function moveUp(btn) {
+        const block = btn.closest('.content-block');
+        const prev = block.previousElementSibling;
+        if (prev) {
+          block.parentNode.insertBefore(block, prev);
+        }
+      }
+
+      function moveDown(btn) {
+        const block = btn.closest('.content-block');
+        const next = block.nextElementSibling;
+        if (next) {
+          block.parentNode.insertBefore(next, block);
+        }
+      }
+
+      function prepareSubmit(event) {
+        const blocks = [];
+        document.querySelectorAll('.content-block').forEach(block => {
+          if (block.dataset.type === 'text') {
+            const content = block.querySelector('textarea').value.trim();
+            if (content) {
+              blocks.push({ type: 'text', content: content });
+            }
+          } else if (block.dataset.type === 'image') {
+            blocks.push({ type: 'image', content: block.dataset.url });
+          }
+        });
+
+        // Validate at least one content block
+        if (blocks.length === 0) {
+          alert('* Please add at least one text or image block to your post.');
+          event.preventDefault();
+          return false;
+        }
+
+        document.getElementById('contentBlocksData').value = JSON.stringify(blocks);
+        return true;
+      }
+
+      // Initialize empty state
+      updateEmptyState();
+    </script>
   </body>
 </html>
