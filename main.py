@@ -321,7 +321,8 @@ async def create_admin_user():
     try:
         admin_user = db.query(User).filter(User.username == "admin").first()
         if not admin_user:
-            hashed_password = pwd_context.hash("Admin123!")
+            # Password: Admin@123 (meets all requirements: 8+ chars, uppercase, lowercase, digit, special char)
+            hashed_password = pwd_context.hash("Admin@123")
             admin = User(
                 username="admin",
                 hashed_password=hashed_password,
@@ -330,7 +331,7 @@ async def create_admin_user():
             )
             db.add(admin)
             db.commit()
-            print("Admin user created successfully")
+            print("Admin user created successfully with username: admin, password: Admin@123")
     except Exception as e:
         print(f"Error creating admin user: {e}")
         db.rollback()
