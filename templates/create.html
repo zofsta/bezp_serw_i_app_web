@@ -4,6 +4,115 @@
     <title>* CREATE POST</title>
     <link rel="stylesheet" href="/static/css/main.css?v=1.3" />
     <link rel="stylesheet" href="/static/css/create.css" />
+    <style>
+      .content-blocks-container {
+        margin: 20px 0;
+        border: 1px solid #ffffff;
+        padding: 15px;
+        background-color: #0f0f0f;
+      }
+
+      .content-block {
+        background-color: #0a0a0a;
+        border: 1px solid #cccccc;
+        padding: 15px;
+        margin-bottom: 15px;
+        position: relative;
+      }
+
+      .block-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #cccccc;
+      }
+
+      .block-type-label {
+        color: #ffffff;
+        font-weight: bold;
+        font-size: 12px;
+      }
+
+      .block-controls {
+        display: flex;
+        gap: 5px;
+      }
+
+      .control-btn {
+        background-color: #0f0f0f;
+        border: 1px solid #cccccc;
+        color: #ffffff;
+        padding: 5px 10px;
+        cursor: pointer;
+        font-size: 12px;
+      }
+
+      .control-btn:hover {
+        background-color: #ffffff;
+        color: #000000;
+      }
+
+      .control-btn.delete {
+        border-color: #ff0000;
+        color: #ff0000;
+      }
+
+      .control-btn.delete:hover {
+        background-color: #ff0000;
+        color: #ffffff;
+      }
+
+      .content-block textarea {
+        width: 100%;
+        background-color: #0f0f0f;
+        border: 1px solid #cccccc;
+        color: #ffffff;
+        padding: 10px;
+        font-family: 'Courier New', monospace;
+        resize: vertical;
+        min-height: 100px;
+      }
+
+      .content-block img {
+        max-width: 100%;
+        border: 1px solid #ffffff;
+        margin-top: 10px;
+      }
+
+      .content-block video {
+        max-width: 100%;
+        border: 1px solid #ffffff;
+        margin-top: 10px;
+      }
+
+      .toolbar {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 15px;
+      }
+
+      .toolbar-btn {
+        background-color: #0f0f0f;
+        border: 1px solid #ffffff;
+        color: #ffffff;
+        padding: 10px 20px;
+        cursor: pointer;
+        font-family: 'Courier New', monospace;
+      }
+
+      .toolbar-btn:hover {
+        background-color: #ffffff;
+        color: #000000;
+      }
+
+      .loading-indicator {
+        text-align: center;
+        color: #ffffff;
+        padding: 20px;
+      }
+    </style>
   </head>
   <body>
     <div class="sidebar">
@@ -23,7 +132,7 @@
         </div>
       </div>
 
-      <form id="postForm" method="post" action="/create">
+      <form method="post" action="/create" id="postForm">
         <div class="form-group">
           <label for="title">* POST TITLE:</label>
           <input type="text" id="title" name="title" placeholder="Enter a descriptive title..." required maxlength="200" />
@@ -33,38 +142,26 @@
         <div class="form-group">
           <label for="tags">* TAGS:</label>
           <input type="text" id="tags" name="tags" placeholder="e.g., gaming, discussion, question" />
-          <small class="help-text">* Optional - Comma-separated tags for categorization</small>
+          <small class="help-text">* Optional - Comma-separated tags</small>
         </div>
 
-        <div class="editor-container">
-          <div class="editor-header">
-            <h3>* CONTENT BLOCKS:</h3>
-            <small class="help-text">* Build your post with text and images</small>
+        <div class="form-group">
+          <label>* CONTENT BLOCKS:</label>
+          <div class="toolbar">
+            <button type="button" class="toolbar-btn" onclick="addTextBlock()">[+ ADD TEXT]</button>
+            <button type="button" class="toolbar-btn" onclick="addImageBlock()">[+ ADD IMAGE]</button>
+            <button type="button" class="toolbar-btn" onclick="addVideoBlock()">[+ ADD VIDEO]</button>
           </div>
-
-          <div class="editor-toolbar">
-            <button type="button" onclick="addTextBlock()" class="toolbar-btn" title="Add text block">
-              [+ TEXT BLOCK]
-            </button>
-            <button type="button" onclick="addImageBlock()" class="toolbar-btn" title="Add image block">
-              [+ IMAGE BLOCK]
-            </button>
+          <div class="content-blocks-container" id="contentBlocksContainer">
+            <p style="color: #cccccc; text-align: center;">* Click [+ ADD TEXT], [+ ADD IMAGE], or [+ ADD VIDEO] to start building your post</p>
           </div>
-
-          <div id="contentBlocks" class="content-blocks">
-            <!-- Blocks will be added here dynamically -->
-          </div>
-
-          <div id="emptyState" class="empty-state">
-            <p>* No content blocks yet.</p>
-            <p>* Click [+ TEXT BLOCK] or [+ IMAGE BLOCK] to start creating your post.</p>
-          </div>
+          <small class="help-text">* Add content blocks in any order: text, images, videos</small>
         </div>
 
-        <input type="hidden" name="content_blocks" id="contentBlocksData" />
+        <input type="hidden" name="blocks" id="blocksData" />
 
         <div class="form-actions">
-          <button type="submit" onclick="prepareSubmit()" class="submit-btn">[CREATE POST]</button>
+          <button type="submit" class="submit-btn" onclick="return prepareSubmit()">[CREATE POST]</button>
           <a href="/main" class="cancel-btn">[CANCEL]</a>
         </div>
       </form>
@@ -77,48 +174,23 @@
     <script>
       let blockCounter = 0;
 
-      function updateEmptyState() {
-        const blocks = document.querySelectorAll('.content-block');
-        const emptyState = document.getElementById('emptyState');
-        if (blocks.length === 0) {
-          emptyState.style.display = 'block';
-        } else {
-          emptyState.style.display = 'none';
-        }
-      }
-
       function addTextBlock() {
         const id = blockCounter++;
         const blockHtml = `
-          <div class="content-block text-block" data-id="${id}" data-type="text">
+          <div class="content-block" data-id="${id}" data-type="text">
             <div class="block-header">
-              <span class="block-type">* TEXT BLOCK #${id + 1}</span>
+              <span class="block-type-label">TEXT BLOCK #${id + 1}</span>
               <div class="block-controls">
-                <button type="button" onclick="moveUp(this)" class="control-btn" title="Move up">▲</button>
-                <button type="button" onclick="moveDown(this)" class="control-btn" title="Move down">▼</button>
-                <button type="button" onclick="removeBlock(this)" class="control-btn delete" title="Remove block">✕</button>
+                <button type="button" class="control-btn" onclick="moveBlockUp(${id})">▲</button>
+                <button type="button" class="control-btn" onclick="moveBlockDown(${id})">▼</button>
+                <button type="button" class="control-btn delete" onclick="removeBlock(${id})">✕</button>
               </div>
             </div>
-            <textarea placeholder="* Type your text here..." rows="5" oninput="autoResize(this)"></textarea>
-            <div class="block-footer">
-              <small class="char-count">0 characters</small>
-            </div>
+            <textarea placeholder="* Enter your text here..." rows="5"></textarea>
           </div>
         `;
-        document.getElementById('contentBlocks').insertAdjacentHTML('beforeend', blockHtml);
+        document.getElementById('contentBlocksContainer').insertAdjacentHTML('beforeend', blockHtml);
         updateEmptyState();
-
-        // Add event listener for character count
-        const newBlock = document.querySelector(`[data-id="${id}"] textarea`);
-        newBlock.addEventListener('input', function() {
-          const count = this.value.length;
-          this.closest('.content-block').querySelector('.char-count').textContent = count + ' characters';
-        });
-      }
-
-      function autoResize(textarea) {
-        textarea.style.height = 'auto';
-        textarea.style.height = textarea.scrollHeight + 'px';
       }
 
       function addImageBlock() {
@@ -129,7 +201,6 @@
           const file = e.target.files[0];
           if (!file) return;
 
-          // Validate file size (10MB)
           if (file.size > 10 * 1024 * 1024) {
             alert('* Error: Image must be less than 10MB');
             return;
@@ -138,20 +209,13 @@
           const formData = new FormData();
           formData.append('image', file);
 
-          // Show loading state
-          const loadingId = blockCounter;
+          const loadingId = blockCounter++;
           const loadingHtml = `
-            <div class="content-block image-block loading" data-id="${loadingId}" data-type="loading">
-              <div class="block-header">
-                <span class="block-type">* IMAGE BLOCK - UPLOADING...</span>
-              </div>
-              <div class="loading-spinner">
-                <p>* Uploading image...</p>
-                <div class="spinner"></div>
-              </div>
+            <div class="content-block loading" data-id="${loadingId}" data-type="loading">
+              <div class="loading-indicator">* Uploading image...</div>
             </div>
           `;
-          document.getElementById('contentBlocks').insertAdjacentHTML('beforeend', loadingHtml);
+          document.getElementById('contentBlocksContainer').insertAdjacentHTML('beforeend', loadingHtml);
           updateEmptyState();
 
           try {
@@ -161,93 +225,174 @@
             });
             const data = await response.json();
 
-            // Remove loading block
             document.querySelector(`[data-id="${loadingId}"]`).remove();
 
             if (data.success) {
               const id = blockCounter++;
-              const fileSize = (file.size / 1024).toFixed(1);
               const blockHtml = `
-                <div class="content-block image-block" data-id="${id}" data-type="image" data-url="${data.url}">
+                <div class="content-block" data-id="${id}" data-type="image" data-url="${data.url}">
                   <div class="block-header">
-                    <span class="block-type">* IMAGE BLOCK #${id + 1}</span>
+                    <span class="block-type-label">IMAGE BLOCK #${id + 1}</span>
                     <div class="block-controls">
-                      <button type="button" onclick="moveUp(this)" class="control-btn" title="Move up">▲</button>
-                      <button type="button" onclick="moveDown(this)" class="control-btn" title="Move down">▼</button>
-                      <button type="button" onclick="removeBlock(this)" class="control-btn delete" title="Remove block">✕</button>
+                      <button type="button" class="control-btn" onclick="moveBlockUp(${id})">▲</button>
+                      <button type="button" class="control-btn" onclick="moveBlockDown(${id})">▼</button>
+                      <button type="button" class="control-btn delete" onclick="removeBlock(${id})">✕</button>
                     </div>
                   </div>
-                  <div class="image-preview">
-                    <img src="${data.url}" alt="Uploaded image" />
-                  </div>
-                  <div class="block-footer">
-                    <small>${file.name} (${fileSize} KB)</small>
-                  </div>
+                  <img src="${data.url}" alt="Uploaded image" />
                 </div>
               `;
-              document.getElementById('contentBlocks').insertAdjacentHTML('beforeend', blockHtml);
+              document.getElementById('contentBlocksContainer').insertAdjacentHTML('beforeend', blockHtml);
               updateEmptyState();
             } else {
-              alert('* Error uploading image. Please try again.');
+              alert('* Error uploading image');
             }
           } catch (error) {
             document.querySelector(`[data-id="${loadingId}"]`).remove();
-            updateEmptyState();
             alert('* Error uploading image: ' + error.message);
+            updateEmptyState();
           }
         };
         input.click();
       }
 
-      function removeBlock(btn) {
-        if (confirm('* Are you sure you want to remove this block?')) {
-          btn.closest('.content-block').remove();
+      function addVideoBlock() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'video/*';
+        input.onchange = async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+
+          if (file.size > 10 * 1024 * 1024) {
+            alert('* Error: Video must be less than 10MB');
+            return;
+          }
+
+          const formData = new FormData();
+          formData.append('video', file);
+
+          const loadingId = blockCounter++;
+          const loadingHtml = `
+            <div class="content-block loading" data-id="${loadingId}" data-type="loading">
+              <div class="loading-indicator">* Uploading video...</div>
+            </div>
+          `;
+          document.getElementById('contentBlocksContainer').insertAdjacentHTML('beforeend', loadingHtml);
+          updateEmptyState();
+
+          try {
+            const response = await fetch('/upload-video', {
+              method: 'POST',
+              body: formData
+            });
+            const data = await response.json();
+
+            document.querySelector(`[data-id="${loadingId}"]`).remove();
+
+            if (data.success) {
+              const id = blockCounter++;
+              const blockHtml = `
+                <div class="content-block" data-id="${id}" data-type="video" data-url="${data.url}">
+                  <div class="block-header">
+                    <span class="block-type-label">VIDEO BLOCK #${id + 1}</span>
+                    <div class="block-controls">
+                      <button type="button" class="control-btn" onclick="moveBlockUp(${id})">▲</button>
+                      <button type="button" class="control-btn" onclick="moveBlockDown(${id})">▼</button>
+                      <button type="button" class="control-btn delete" onclick="removeBlock(${id})">✕</button>
+                    </div>
+                  </div>
+                  <video controls>
+                    <source src="${data.url}" type="${file.type}">
+                  </video>
+                </div>
+              `;
+              document.getElementById('contentBlocksContainer').insertAdjacentHTML('beforeend', blockHtml);
+              updateEmptyState();
+            } else {
+              alert('* Error uploading video');
+            }
+          } catch (error) {
+            document.querySelector(`[data-id="${loadingId}"]`).remove();
+            alert('* Error uploading video: ' + error.message);
+            updateEmptyState();
+          }
+        };
+        input.click();
+      }
+
+      function removeBlock(id) {
+        const block = document.querySelector(`[data-id="${id}"]`);
+        if (block && confirm('* Remove this block?')) {
+          block.remove();
           updateEmptyState();
         }
       }
 
-      function moveUp(btn) {
-        const block = btn.closest('.content-block');
+      function moveBlockUp(id) {
+        const block = document.querySelector(`[data-id="${id}"]`);
         const prev = block.previousElementSibling;
-        if (prev) {
+        if (prev && !prev.classList.contains('loading')) {
           block.parentNode.insertBefore(block, prev);
         }
       }
 
-      function moveDown(btn) {
-        const block = btn.closest('.content-block');
+      function moveBlockDown(id) {
+        const block = document.querySelector(`[data-id="${id}"]`);
         const next = block.nextElementSibling;
         if (next) {
           block.parentNode.insertBefore(next, block);
         }
       }
 
-      function prepareSubmit(event) {
-        const blocks = [];
-        document.querySelectorAll('.content-block').forEach(block => {
-          if (block.dataset.type === 'text') {
-            const content = block.querySelector('textarea').value.trim();
-            if (content) {
-              blocks.push({ type: 'text', content: content });
-            }
-          } else if (block.dataset.type === 'image') {
-            blocks.push({ type: 'image', content: block.dataset.url });
-          }
-        });
-
-        // Validate at least one content block
+      function updateEmptyState() {
+        const container = document.getElementById('contentBlocksContainer');
+        const blocks = container.querySelectorAll('.content-block:not(.loading)');
         if (blocks.length === 0) {
-          alert('* Please add at least one text or image block to your post.');
-          event.preventDefault();
+          container.innerHTML = '<p style="color: #cccccc; text-align: center;">* Click [+ ADD TEXT], [+ ADD IMAGE], or [+ ADD VIDEO] to start building your post</p>';
+        } else {
+          const emptyMsg = container.querySelector('p');
+          if (emptyMsg && emptyMsg.textContent.includes('Click')) {
+            emptyMsg.remove();
+          }
+        }
+      }
+
+      function prepareSubmit() {
+        const blocks = [];
+        const blockElements = document.querySelectorAll('.content-block:not(.loading)');
+
+        if (blockElements.length === 0) {
+          alert('* Please add at least one content block');
           return false;
         }
 
-        document.getElementById('contentBlocksData').value = JSON.stringify(blocks);
+        blockElements.forEach(block => {
+          const type = block.dataset.type;
+          if (type === 'text') {
+            const textarea = block.querySelector('textarea');
+            const content = textarea.value.trim();
+            if (content) {
+              blocks.push({ type: 'text', content: content });
+            }
+          } else if (type === 'image') {
+            blocks.push({ type: 'image', url: block.dataset.url });
+          } else if (type === 'video') {
+            blocks.push({ type: 'video', url: block.dataset.url });
+          }
+        });
+
+        if (blocks.length === 0) {
+          alert('* Please add content to your blocks');
+          return false;
+        }
+
+        document.getElementById('blocksData').value = JSON.stringify(blocks);
         return true;
       }
 
-      // Initialize empty state
-      updateEmptyState();
+      // Initialize with one text block
+      addTextBlock();
     </script>
   </body>
 </html>

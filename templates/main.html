@@ -46,22 +46,28 @@
           <span class="timestamp">{{ post.created_at.strftime('%H:%M %d-%m-%Y') if post.created_at else 'N/A' }}</span>
         </div>
       </div>
-      <!-- Nested content blocks -->
+      <!-- Post content blocks -->
       {% if post.content_blocks %}
-        {% set blocks = post.content_blocks | from_json %}
-        <div class="post-content-blocks">
-          {% for block in blocks %}
-            {% if block.type == 'text' %}
-              <div class="content-text-block">{{ block.content }}</div>
-            {% elif block.type == 'image' %}
-              <div class="content-image-block">
-                <img src="{{ block.content }}" alt="Post image" />
-              </div>
-            {% endif %}
-          {% endfor %}
-        </div>
-      {% else %}
-        <p>{{ post.content }}</p>
+      <div class="post-content-blocks">
+        {% for block in post.content_blocks %}
+          {% if block.block_type == 'text' %}
+          <div class="content-block-text">
+            <p>{{ block.content }}</p>
+          </div>
+          {% elif block.block_type == 'image' %}
+          <div class="content-block-image">
+            <img src="{{ block.url }}" alt="Post image" />
+          </div>
+          {% elif block.block_type == 'video' %}
+          <div class="content-block-video">
+            <video controls>
+              <source src="{{ block.url }}">
+              Your browser does not support the video tag.
+            </video>
+          </div>
+          {% endif %}
+        {% endfor %}
+      </div>
       {% endif %}
 
       {% if post.tags %}
