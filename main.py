@@ -17,7 +17,10 @@ import shutil
 from pathlib import Path
 
 # Database setup - REQUIRE environment variable, no localhost fallback
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = (
+    os.getenv("DATABASE_URL") or
+    os.getenv("POSTGRESQLCONNSTR_DEFAULTCONNECTION") or
+)
 
 # Validate that DATABASE_URL is set BEFORE creating engine
 if not DATABASE_URL:
