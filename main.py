@@ -17,10 +17,25 @@ import shutil
 from pathlib import Path
 
 # Database setup
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@db:5432/authdb")
-engine = create_engine(DATABASE_URL)
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/authdb")
+
+# Create engine with connection pooling suitable for Azure PostgreSQL
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,  # Verify connections before using them
+    pool_size=10,
+    max_overflow=20,
+    pool_recycle=3600,  # Recycle connections after 1 hour
+    connect_args={
+        "connect_timeout": 10,
+        "options": "-c timezone=utc"
+    }
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+# Database connection status
+db_connected = False
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -275,17 +290,40 @@ def validate_registration_data(username: str, password: str, email: str):
         return False, errors
 
 
-# Wait for database and create tables
-max_retries = 30
-for i in range(max_retries):
-    try:
-        Base.metadata.create_all(bind=engine)
-        break
-    except Exception as e:
-        if i < max_retries - 1:
-            time.sleep(1)
-        else:
-            raise
+# Try to connect to database and create tables
+def initialize_database():
+    """
+    Try to connect to the database and create tables.
+    Returns True if successful, False otherwise.
+    """
+    global db_connected
+    max_retries = 5
+    for i in range(max_retries):
+        try:
+            # Test connection
+            from sqlalchemy import text
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            # Create tables if connection successful
+            Base.metadata.create_all(bind=engine)
+            db_connected = True
+            print("✓ Database connected successfully")
+            return True
+        except Exception as e:
+            if i < max_retries - 1:
+                print(f"⚠ Database connection attempt {i+1}/{max_retries} failed: {str(e)}")
+                time.sleep(2)
+            else:
+                print(f"✗ Failed to connect to database after {max_retries} attempts")
+                print(f"✗ Error: {str(e)}")
+                print("⚠ Application will start WITHOUT database functionality")
+                print("⚠ Please check your DATABASE_URL environment variable")
+                db_connected = False
+                return False
+    return False
+
+# Initialize database on module load
+initialize_database()
 
 app = FastAPI()
 
@@ -317,6 +355,11 @@ templates.env.filters['from_json'] = from_json_filter
 # Create admin user on startup
 @app.on_event("startup")
 async def create_admin_user():
+    """Create admin user if database is available"""
+    if not db_connected:
+        print("⚠ Skipping admin user creation - database not connected")
+        return
+
     db = SessionLocal()
     try:
         admin_user = db.query(User).filter(User.username == "admin").first()
@@ -331,15 +374,26 @@ async def create_admin_user():
             )
             db.add(admin)
             db.commit()
-            print("Admin user created successfully with username: admin, password: Admin@123")
+            print("✓ Admin user created successfully with username: admin, password: Admin@123")
+        else:
+            print("✓ Admin user already exists")
     except Exception as e:
-        print(f"Error creating admin user: {e}")
+        print(f"✗ Error creating admin user: {e}")
         db.rollback()
     finally:
         db.close()
 
 # Dependency
 def get_db():
+    """
+    Database session dependency with connection check.
+    Raises HTTPException if database is not connected.
+    """
+    if not db_connected:
+        raise HTTPException(
+            status_code=503,
+            detail="Database is currently unavailable. Please try again later."
+        )
     db = SessionLocal()
     try:
         yield db
@@ -363,14 +417,29 @@ def get_current_user(request: Request, db: Session = Depends(get_db)):
 # ENDPOINTY Z WALIDACJĄ
 # ═══════════════════════════════════════════════════════════
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for Azure Web Services"""
+    return {
+        "status": "healthy" if db_connected else "degraded",
+        "database": "connected" if db_connected else "disconnected",
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    return templates.TemplateResponse("register.html", {"request": request})
+    return templates.TemplateResponse("register.html", {
+        "request": request,
+        "db_connected": db_connected
+    })
 
 
 @app.get("/register", response_class=HTMLResponse)
 async def register_page(request: Request):
-    return templates.TemplateResponse("register.html", {"request": request})
+    return templates.TemplateResponse("register.html", {
+        "request": request,
+        "db_connected": db_connected
+    })
 
 
 @app.post("/register")
@@ -461,7 +530,10 @@ async def register(
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
+    return templates.TemplateResponse("login.html", {
+        "request": request,
+        "db_connected": db_connected
+    })
 
 
 @app.post("/login")
