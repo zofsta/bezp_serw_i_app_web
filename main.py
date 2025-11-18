@@ -19,7 +19,7 @@ from pathlib import Path
 # Database setup - REQUIRE environment variable, no localhost fallback
 DATABASE_URL = (
     os.getenv("DATABASE_URL") or
-    os.getenv("POSTGRESQLCONNSTR_DEFAULTCONNECTION") or
+    os.getenv("POSTGRESQLCONNSTR_DEFAULTCONNECTION")
 )
 
 # Validate that DATABASE_URL is set BEFORE creating engine
