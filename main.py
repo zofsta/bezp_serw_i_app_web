@@ -16,8 +16,8 @@ import uuid
 import shutil
 from pathlib import Path
 
-# Database setup
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/authdb")
+# Database setup - REQUIRE environment variable, no localhost fallback
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 # Create engine with connection pooling suitable for Azure PostgreSQL
 engine = create_engine(
@@ -298,28 +298,44 @@ def initialize_database():
     """
     global db_connected
     max_retries = 5
+    print(f"\n🔄 Attempting to connect to database...")
+    print(f"📍 Server: {DATABASE_URL.split('@')[1].split('/')[0] if '@' in DATABASE_URL else 'unknown'}")
+    
     for i in range(max_retries):
         try:
             # Test connection
             from sqlalchemy import text
             with engine.connect() as conn:
-                conn.execute(text("SELECT 1"))
+                result = conn.execute(text("SELECT version()"))
+                version = result.fetchone()[0]
+                print(f"✓ Database connected successfully!")
+                print(f"✓ PostgreSQL version: {version.split(',')[0]}")
+            
             # Create tables if connection successful
             Base.metadata.create_all(bind=engine)
             db_connected = True
-            print("✓ Database connected successfully")
+            print("✓ Database tables initialized")
             return True
+            
         except Exception as e:
             if i < max_retries - 1:
-                print(f"⚠ Database connection attempt {i+1}/{max_retries} failed: {str(e)}")
+                print(f"⚠ Database connection attempt {i+1}/{max_retries} failed")
+                print(f"   Error: {str(e)[:100]}")
                 time.sleep(2)
             else:
-                print(f"✗ Failed to connect to database after {max_retries} attempts")
+                print(f"\n{'='*80}")
+                print(f"✗ CRITICAL: Failed to connect to database after {max_retries} attempts")
                 print(f"✗ Error: {str(e)}")
-                print("⚠ Application will start WITHOUT database functionality")
-                print("⚠ Please check your DATABASE_URL environment variable")
+                print(f"{'='*80}")
+                print("Possible issues:")
+                print("1. DATABASE_URL is incorrectly formatted")
+                print("2. PostgreSQL server firewall blocks Azure App Service")
+                print("3. Wrong credentials (username/password)")
+                print("4. Database does not exist")
+                print(f"{'='*80}\n")
                 db_connected = False
-                return False
+                raise ConnectionError(f"Cannot connect to database: {str(e)}")
+    
     return False
 
 # Initialize database on module load
