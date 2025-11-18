@@ -19,6 +19,13 @@ from pathlib import Path
 # Database setup - REQUIRE environment variable, no localhost fallback
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+# Validate that DATABASE_URL is set BEFORE creating engine
+if not DATABASE_URL:
+    import sys
+    sys.exit(1)
+
+print(f"✓ DATABASE_URL found: {DATABASE_URL[:30]}...") # Show first 30 chars for verification
+
 # Create engine with connection pooling suitable for Azure PostgreSQL
 engine = create_engine(
     DATABASE_URL,
