@@ -1,0 +1,25 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    # --- Integracyjne / jednostkowe testy Python ---
+    - name: Run fast pytest
+      uses: paolorechia/fast-pytest-github-action@v1.0
+      with:
+        pytest_args: "-v testy_jednostkowe.py"
+        requirements_file: "requirements.txt"
+
+    # --- Budowanie kontenera dopiero po testach ---
+    - name: Build the Docker image
+      run: docker build . --file Dockerfile --tag my-image-name:$(date +%s)
