@@ -29,18 +29,45 @@ if not DATABASE_URL:
 
 print(f"✓ DATABASE_URL found: {DATABASE_URL[:30]}...") # Show first 30 chars for verification
 
-# Create engine with connection pooling suitable for Azure PostgreSQL
-engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,  # Verify connections before using them
-    pool_size=10,
-    max_overflow=20,
-    pool_recycle=3600,  # Recycle connections after 1 hour
-    connect_args={
-        "connect_timeout": 10,
-        "options": "-c timezone=utc"
-    }
+# Database setup - REQUIRE environment variable, no localhost fallback
+DATABASE_URL = (
+    os.getenv("DATABASE_URL") or
+    os.getenv("POSTGRESQLCONNSTR_DEFAULTCONNECTION")
 )
+
+# Validate that DATABASE_URL is set BEFORE creating engine
+if not DATABASE_URL:
+    import sys
+    sys.exit(1)
+
+print(f"✓ DATABASE_URL found: {DATABASE_URL[:30]}...") # Show first 30 chars for verification
+
+# Detect database type (SQLite vs PostgreSQL)
+is_sqlite = DATABASE_URL.startswith('sqlite')
+
+# Create engine with appropriate settings based on database type
+if is_sqlite:
+    # SQLite configuration (for testing and local development)
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False}
+    )
+    print("✓ Using SQLite database (test mode)")
+else:
+    # PostgreSQL configuration (for production on Azure)
+    engine = create_engine(
+        DATABASE_URL,
+        pool_pre_ping=True,  # Verify connections before using them
+        pool_size=10,
+        max_overflow=20,
+        pool_recycle=3600,  # Recycle connections after 1 hour
+        connect_args={
+            "connect_timeout": 10,
+            "options": "-c timezone=utc"
+        }
+    )
+    print("✓ Using PostgreSQL database (production mode)")
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -197,10 +224,6 @@ class ThreadAttachment(Base):
 
     thread = relationship("Thread", back_populates="attachments")
 
-# ═══════════════════════════════════════════════════════════
-# WALIDACJA - MODELE PYDANTIC
-# ═══════════════════════════════════════════════════════════
-
 class RegisterRequest(BaseModel):
     """Model walidacyjny dla rejestracji"""
     username: str = Field(..., min_length=3, max_length=20)
@@ -300,7 +323,6 @@ def validate_registration_data(username: str, password: str, email: str):
         return False, errors
 
 
-# Try to connect to database and create tables
 def initialize_database():
     """
     Try to connect to the database and create tables.
@@ -309,17 +331,30 @@ def initialize_database():
     global db_connected
     max_retries = 5
     print(f"\n🔄 Attempting to connect to database...")
-    print(f"📍 Server: {DATABASE_URL.split('@')[1].split('/')[0] if '@' in DATABASE_URL else 'unknown'}")
+    
+    # Detect database type
+    is_sqlite = DATABASE_URL.startswith('sqlite')
+    
+    if not is_sqlite:
+        print(f"📍 Server: {DATABASE_URL.split('@')[1].split('/')[0] if '@' in DATABASE_URL else 'unknown'}")
     
     for i in range(max_retries):
         try:
-            # Test connection
+            # Test connection with appropriate query based on database type
             from sqlalchemy import text
             with engine.connect() as conn:
-                result = conn.execute(text("SELECT version()"))
-                version = result.fetchone()[0]
-                print(f"✓ Database connected successfully!")
-                print(f"✓ PostgreSQL version: {version.split(',')[0]}")
+                if is_sqlite:
+                    # SQLite - test with simple query
+                    result = conn.execute(text("SELECT sqlite_version()"))
+                    version = result.fetchone()[0]
+                    print(f"✓ Database connected successfully!")
+                    print(f"✓ SQLite version: {version}")
+                else:
+                    # PostgreSQL - use version() function
+                    result = conn.execute(text("SELECT version()"))
+                    version = result.fetchone()[0]
+                    print(f"✓ Database connected successfully!")
+                    print(f"✓ PostgreSQL version: {version.split(',')[0]}")
             
             # Create tables if connection successful
             Base.metadata.create_all(bind=engine)
@@ -337,12 +372,13 @@ def initialize_database():
                 print(f"✗ CRITICAL: Failed to connect to database after {max_retries} attempts")
                 print(f"✗ Error: {str(e)}")
                 print(f"{'='*80}")
-                print("Possible issues:")
-                print("1. DATABASE_URL is incorrectly formatted")
-                print("2. PostgreSQL server firewall blocks Azure App Service")
-                print("3. Wrong credentials (username/password)")
-                print("4. Database does not exist")
-                print(f"{'='*80}\n")
+                if not is_sqlite:
+                    print("Possible issues:")
+                    print("1. DATABASE_URL is incorrectly formatted")
+                    print("2. PostgreSQL server firewall blocks Azure App Service")
+                    print("3. Wrong credentials (username/password)")
+                    print("4. Database does not exist")
+                    print(f"{'='*80}\n")
                 db_connected = False
                 raise ConnectionError(f"Cannot connect to database: {str(e)}")
     
