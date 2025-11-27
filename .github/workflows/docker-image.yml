@@ -13,13 +13,20 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    # --- Integracyjne / jednostkowe testy Python ---
-    - name: Run fast pytest
-      uses: paolorechia/fast-pytest-github-action@v1.0
+    # --- Python + pytest ---
+    - name: Set up Python
+      uses: actions/setup-python@v5
       with:
-        pytest_args: "-v testy_jednostkowe.py"
-        requirements_file: "requirements.txt"
+        python-version: "3.11"
 
-    # --- Budowanie kontenera dopiero po testach ---
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install pytest
+
+    - name: Run pytest
+      run: pytest -v testy_jednostkowe.py
+
+    # --- Build Docker image only if pytest succeeds ---
     - name: Build the Docker image
       run: docker build . --file Dockerfile --tag my-image-name:$(date +%s)
