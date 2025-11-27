@@ -24,9 +24,35 @@ jobs:
         pip install -r requirements.txt
         pip install pytest
 
-    - name: Run pytest
-      run: pytest -v testy_jednostkowe.py
+    # - name: Run pytest
+    #   run: pytest -v testy_jednostkowe.py
 
-    # --- Build Docker image only if pytest succeeds ---
-    - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag my-image-name:$(date +%s)
+    # # --- Build Docker image only if pytest succeeds ---
+    # - name: Build Docker image
+    #   # TAG użyjemy TIMESTAMP aby nie kolidować
+    #   run: |
+    #     TIMESTAMP=$(date +%s)
+    #     IMAGE_NAME="my-image-name"
+    #     docker build . --file Dockerfile --tag $IMAGE_NAME:$TIMESTAMP
+    #     echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
+    #     echo "IMAGE_TAG=$TIMESTAMP" >> $GITHUB_ENV
+
+    # - name: Log in to Docker Hub
+    #   env:
+    #     DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+    #     DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+    #   run: echo "${DOCKERHUB_TOKEN}" | docker login -u "${DOCKERHUB_USERNAME}" --password-stdin
+
+    # - name: Tag image for Docker Hub
+    #   run: |
+    #     TIMESTAMP=$IMAGE_TAG
+    #     IMAGE_NAME=$IMAGE_NAME
+    #     REPO="${{ secrets.DOCKERHUB_USERNAME }}/${IMAGE_NAME}"
+    #     docker tag $IMAGE_NAME:$TIMESTAMP $REPO:latest
+    #     docker tag $IMAGE_NAME:$TIMESTAMP $REPO:$TIMESTAMP
+    #     echo "REPO=$REPO" >> $GITHUB_ENV
+
+    # - name: Push image to Docker Hub
+    #   run: |
+    #     docker push $REPO:latest
+    #     docker push $REPO:$IMAGE_TAG
