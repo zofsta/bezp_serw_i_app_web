@@ -24,8 +24,8 @@ jobs:
         pip install -r requirements.txt
         pip install pytest
 
-    # - name: Run pytest
-    #   run: pytest -v testy_jednostkowe.py
+    - name: Run pytest
+      run: pytest -v unit_tests.py
 
     # # --- Build Docker image only if pytest succeeds ---
     # - name: Build Docker image
